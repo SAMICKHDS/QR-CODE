@@ -1,47 +1,113 @@
-
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <title>QR코드 스캔 저장</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script src="html5-qrcode.min.js"></script>
+  <meta charset="UTF-8" />
+  <title>QR코드 스캔 → Google 시트 저장</title>
+  <script src="https://unpkg.com/html5-qrcode"></script>
   <style>
     body {
       font-family: 'Segoe UI', sans-serif;
-      margin: 0;
-      padding: 0;
-      background: #f9f9f9;
       text-align: center;
-    }
-    header {
-      background: #333;
-      color: white;
-      padding: 1rem;
-      font-size: 1.5rem;
-    }
-    main {
+      background: #f9f9f9;
       padding: 20px;
     }
-    #qr-reader {
-      width: 100%;
-      max-width: 400px;
-      margin: auto;
-      border: 1px solid #ccc;
+    h1 {
+      background: #333;
+      color: #fff;
+      padding: 10px 0;
+      font-size: 22px;
+      margin-bottom: 20px;
     }
-    #status {
-      margin-top: 20px;
-      font-size: 1rem;
-      color: #333;
+    #reader {
+      width: 300px;
+      margin: auto;
+      border: 2px solid #ccc;
+      border-radius: 8px;
+      padding: 10px;
+      background: white;
+    }
+    .info {
+      color: #666;
+      margin-top: 15px;
     }
   </style>
 </head>
 <body>
-  <header>📦 QR코드 스캔 → Google 시트 저장</header>
-  <main>
-    <div id="qr-reader"></div>
-    <div id="status">카메라를 QR 코드에 맞춰주세요...</div>
-  </main>
-  <script src="script.js"></script>
+  <h1>📦 QR코드 스캔 → Google 시트 저장</h1>
+  <div id="reader">카메라를 QR 코드에 맞춰주세요...</div>
+  <p class="info">
+    ※ 브라우저에서 카메라 접근을 허용해 주세요.<br>
+    (iPhone은 Safari에서 사용 가능)
+  </p>
+
+  <script>
+    const scriptURL = "https://script.google.com/macros/s/AKfycbyWvB7Jkd26F8KPEj3Z7g-23elU1vVzrkkVdIPFgl-zusl_1iPuQC36JJFdj4GXgDVI/exec";
+
+    function sendToGoogleSheet(qrText) {
+      const parts = qrText.split("|");
+      if (parts.length < 4) {
+        alert("QR코드 형식이 올바르지 않습니다.");
+        return;
+      }
+
+      const payload = {
+        part_no: parts[0],
+        part_name: parts[1],
+        receipt_no: parts[2],
+        lot_no: parts[3],
+      };
+
+      fetch(scriptURL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      })
+      .then(response => {
+        alert("✅ 저장 완료");
+        console.log("성공:", response);
+      })
+      .catch(error => {
+        alert("❌ 저장 실패");
+        console.error("에러:", error);
+      });
+    }
+
+    function onScanSuccess(decodedText) {
+      console.log(`Scanned: ${decodedText}`);
+      sendToGoogleSheet(decodedText);
+    }
+
+    function onScanError(errorMessage) {
+      console.warn(`QR Scan Error: ${errorMessage}`);
+    }
+
+    function startScanner() {
+      const html5QrCode = new Html5Qrcode("reader");
+
+      Html5Qrcode.getCameras().then(devices => {
+        if (devices && devices.length) {
+          html5QrCode.start(
+            devices[0].id,
+            { fps: 10, qrbox: 250 },
+            onScanSuccess,
+            onScanError
+          ).catch(err => {
+            document.getElementById("reader").innerHTML =
+              "📵 카메라를 시작할 수 없습니다. 브라우저 권한을 확인하세요.";
+            console.error("Start Error:", err);
+          });
+        } else {
+          document.getElementById("reader").innerHTML =
+            "❌ 사용 가능한 카메라가 없습니다.";
+        }
+      }).catch(err => {
+        document.getElementById("reader").innerHTML =
+          "🚫 카메라 접근 권한이 거부되었거나 기기를 찾을 수 없습니다.";
+        console.error("Camera Error:", err);
+      });
+    }
+
+    startScanner();
+  </script>
 </body>
 </html>
