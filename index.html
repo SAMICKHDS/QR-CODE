@@ -31,19 +31,28 @@
       font-size: 14px;
       margin-top: 10px;
     }
+    select {
+      margin-top: 10px;
+      padding: 5px;
+    }
   </style>
 </head>
 <body>
   <h1>📦 QR코드 스캔 → Google 시트 저장</h1>
-  <div id="reader">카메라를 QR 코드에 맞춰주세요...</div>
+  <div>
+    <label for="cameraSelect">🎥 카메라 선택:</label>
+    <select id="cameraSelect"></select>
+  </div>
+  <div id="reader"></div>
   <p class="info">
-    ※ 모바일에서는 <strong>카메라 허용</strong> 후<br />
-    후면카메라가 자동으로 사용됩니다.<br />
-    iPhone은 Safari에서만 작동합니다.
+    ※ 모바일에서는 후면카메라를 선택하세요.<br />
+    Safari는 iOS 전용입니다.
   </p>
 
   <script>
     const scriptURL = "https://script.google.com/macros/s/AKfycbyWvB7Jkd26F8KPEj3Z7g-23elU1vVzrkkVdIPFgl-zusl_1iPuQC36JJFdj4GXgDVI/exec";
+    let html5QrCode;
+    let currentCameraId = null;
 
     function sendToGoogleSheet(qrText) {
       const parts = qrText.split("|");
@@ -64,38 +73,68 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       })
-      .then(response => {
-        alert("✅ 저장 완료!");
-      })
+      .then(response => alert("✅ 저장 완료!"))
       .catch(error => {
         alert("❌ 저장 실패!");
         console.error("저장 오류:", error);
       });
     }
 
-    function startScanner() {
-      const html5QrCode = new Html5Qrcode("reader");
+    function startScanner(cameraId) {
+      if (html5QrCode) {
+        html5QrCode.stop().then(() => {
+          html5QrCode.clear();
+          initScanner(cameraId);
+        });
+      } else {
+        initScanner(cameraId);
+      }
+    }
 
+    function initScanner(cameraId) {
+      html5QrCode = new Html5Qrcode("reader");
       html5QrCode.start(
-        { facingMode: "environment" },  // ✅ 후면 카메라 우선
+        cameraId,
         { fps: 10, qrbox: 250 },
-        qrCodeMessage => {
-          console.log("Scanned:", qrCodeMessage);
-          sendToGoogleSheet(qrCodeMessage);
+        qrMessage => {
+          console.log("스캔 성공:", qrMessage);
+          sendToGoogleSheet(qrMessage);
         },
-        errorMessage => {
-          // 콘솔에만 표시 (필요 시 화면에 표시 가능)
-          console.warn("스캔 오류:", errorMessage);
+        err => {
+          console.warn("스캔 오류:", err);
         }
       ).catch(err => {
         document.getElementById("reader").innerHTML =
-          "📵 카메라 시작 실패. 권한을 허용했는지 확인하세요.";
-        console.error("카메라 시작 오류:", err);
+          "📵 카메라 시작 오류. 권한을 확인해 주세요.";
+        console.error("카메라 오류:", err);
       });
     }
 
-    // 시작
-    startScanner();
+    // 카메라 목록 불러오기 + 셀렉트 생성
+    Html5Qrcode.getCameras().then(devices => {
+      const cameraSelect = document.getElementById("cameraSelect");
+
+      devices.forEach((device, index) => {
+        const option = document.createElement("option");
+        option.value = device.id;
+        option.text = device.label || `Camera ${index + 1}`;
+        cameraSelect.appendChild(option);
+      });
+
+      // 기본 첫 번째 카메라로 시작
+      currentCameraId = devices[0].id;
+      startScanner(currentCameraId);
+
+      // 카메라 변경 시
+      cameraSelect.addEventListener("change", () => {
+        currentCameraId = cameraSelect.value;
+        startScanner(currentCameraId);
+      });
+    }).catch(err => {
+      document.getElementById("reader").innerHTML =
+        "🚫 카메라 장치를 찾을 수 없습니다.";
+      console.error("카메라 감지 오류:", err);
+    });
   </script>
 </body>
 </html>
